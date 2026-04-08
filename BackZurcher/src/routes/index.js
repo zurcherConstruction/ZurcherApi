@@ -54,6 +54,7 @@ const reminderRoutes = require('./reminderRoutes'); // 🆕 Rutas para recordato
 const salesLeadRoutes = require('./SalesLeadRoutes'); // 🆕 Rutas para prospectos de venta
 const leadNoteRoutes = require('./LeadNoteRoutes'); // 🆕 Rutas para notas de leads
 const companyEmailRoutes = require('./companyEmailRoutes'); // 🆕 Rutas para emails masivos de marketing
+const knowledgeBaseRoutes = require('./knowledgeBaseRoutes'); // 🆕 Rutas para base de conocimiento
 // Health check endpoint (público, sin autenticación)
 router.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -119,5 +120,6 @@ router.use('/reminders', reminderRoutes); // 🆕 Ruta para recordatorios
 router.use('/sales-leads', salesLeadRoutes); // 🆕 Ruta para prospectos de venta
 router.use('/lead-notes', leadNoteRoutes); // 🆕 Ruta para notas de leads
 router.use('/company-emails', companyEmailRoutes); // 🆕 Ruta para emails masivos de marketing
+router.use('/knowledge-base', knowledgeBaseRoutes); // 🆕 Ruta para base de conocimiento
 
 module.exports = router;

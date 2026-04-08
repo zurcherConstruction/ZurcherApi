@@ -126,31 +126,54 @@ const ClaimController = {
         });
       }
 
-      const claimNumber = await Claim.generateClaimNumber();
-
       // Determinar status según si tiene fecha y staff asignado
       let status = 'pending';
       if (scheduledDate && assignedStaffId) status = 'scheduled';
       else if (scheduledDate) status = 'scheduled';
 
-      const claim = await Claim.create({
-        claimNumber,
-        clientName,
-        clientPhone: clientPhone || null,
-        clientEmail: clientEmail || null,
-        propertyAddress,
-        linkedWorkId: linkedWorkId || null,
-        linkedSimpleWorkId: linkedSimpleWorkId || null,
-        description,
-        claimType: claimType || 'repair',
-        priority: priority || 'medium',
-        status,
-        claimDate: claimDate || new Date(),
-        scheduledDate: scheduledDate || null,
-        assignedStaffId: assignedStaffId || null,
-        notes: notes || null,
-        createdBy: req.user?.id || null
-      });
+      // Reintentar hasta 5 veces en caso de duplicado (race condition)
+      let claim = null;
+      let attempts = 0;
+      const maxAttempts = 5;
+
+      while (!claim && attempts < maxAttempts) {
+        attempts++;
+        try {
+          const claimNumber = await Claim.generateClaimNumber();
+
+          claim = await Claim.create({
+            claimNumber,
+            clientName,
+            clientPhone: clientPhone || null,
+            clientEmail: clientEmail || null,
+            propertyAddress,
+            linkedWorkId: linkedWorkId || null,
+            linkedSimpleWorkId: linkedSimpleWorkId || null,
+            description,
+            claimType: claimType || 'repair',
+            priority: priority || 'medium',
+            status,
+            claimDate: claimDate || new Date(),
+            scheduledDate: scheduledDate || null,
+            assignedStaffId: assignedStaffId || null,
+            notes: notes || null,
+            createdBy: req.user?.id || null
+          });
+        } catch (err) {
+          // Si es error de duplicado, reintentar
+          if (err.name === 'SequelizeUniqueConstraintError' && attempts < maxAttempts) {
+            console.warn(`⚠️ Número de claim duplicado, reintentando... (intento ${attempts}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 100 * attempts)); // Espera progresiva
+            continue;
+          }
+          // Si no es duplicado o se excedió max intentos, lanzar error
+          throw err;
+        }
+      }
+
+      if (!claim) {
+        throw new Error('No se pudo generar un número de claim único después de múltiples intentos');
+      }
 
       const createdClaim = await Claim.findByPk(claim.id, {
         include: [

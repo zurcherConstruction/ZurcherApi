@@ -97,7 +97,7 @@ sequelize.models = Object.fromEntries(capsEntries);
 
 // En sequelize.models están todos los modelos importados como propiedades
 // Para relacionarlos hacemos un destructuring
-const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign } = sequelize.models;
+const { Staff, Permit, Income, ChangeOrder, Expense, Budget, Work, Material, Inspection, Notification, InstallationDetail, MaterialSet, Image, Receipt, NotificationApp, BudgetItem, BudgetLineItem, FinalInvoice, WorkExtraItem, MaintenanceVisit, MaintenanceMedia, ContactFile, ContactRequest, FixedExpense, FixedExpensePayment, SupplierInvoice, SupplierInvoiceExpense, SupplierInvoiceWork, SupplierInvoiceSimpleWork, SupplierInvoiceItem, BudgetNote, WorkNote, WorkStateHistory, BankAccount, BankTransaction, WorkChecklist, StaffAttendance, SimpleWork, SimpleWorkPayment, SimpleWorkExpense, SimpleWorkItem, Claim, Reminder, ReminderAssignment, ReminderComment, SalesLead, LeadNote, MarketingCampaign, KnowledgeCategory, KnowledgeContact, KnowledgeProcedure, KnowledgeDocument } = sequelize.models;
 
 ContactRequest.hasMany(ContactFile, { foreignKey: 'contactRequestId', as: 'files' });
 ContactFile.belongsTo(ContactRequest, { foreignKey: 'contactRequestId' });
@@ -870,6 +870,47 @@ Staff.hasMany(ReminderComment, { foreignKey: 'staff_id', as: 'reminderComments' 
 MarketingCampaign.belongsTo(Staff, { foreignKey: 'sentByStaffId', as: 'sentBy' });
 Staff.hasMany(MarketingCampaign, { foreignKey: 'sentByStaffId', as: 'marketingCampaigns' });
 
+// ========================= KNOWLEDGE BASE ASSOCIATIONS ========================= //
+// 📚 Una categoría tiene muchos contactos, procedimientos y documentos
+KnowledgeCategory.hasMany(KnowledgeContact, {
+  foreignKey: 'categoryId',
+  as: 'contacts'
+});
+KnowledgeContact.belongsTo(KnowledgeCategory, {
+  foreignKey: 'categoryId',
+  as: 'category'
+});
+
+KnowledgeCategory.hasMany(KnowledgeProcedure, {
+  foreignKey: 'categoryId',
+  as: 'procedures'
+});
+KnowledgeProcedure.belongsTo(KnowledgeCategory, {
+  foreignKey: 'categoryId',
+  as: 'category'
+});
+
+KnowledgeCategory.hasMany(KnowledgeDocument, {
+  foreignKey: 'categoryId',
+  as: 'documents'
+});
+KnowledgeDocument.belongsTo(KnowledgeCategory, {
+  foreignKey: 'categoryId',
+  as: 'category'
+});
+
+// 👤 Relaciones con Staff para auditoría
+Staff.hasMany(KnowledgeContact, { foreignKey: 'createdBy', as: 'knowledgeContactsCreated' });
+KnowledgeContact.belongsTo(Staff, { foreignKey: 'createdBy', as: 'creator' });
+KnowledgeContact.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
+
+Staff.hasMany(KnowledgeProcedure, { foreignKey: 'createdBy', as: 'knowledgeProceduresCreated' });
+KnowledgeProcedure.belongsTo(Staff, { foreignKey: 'createdBy', as: 'creator' });
+KnowledgeProcedure.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
+
+Staff.hasMany(KnowledgeDocument, { foreignKey: 'createdBy', as: 'knowledgeDocumentsCreated' });
+KnowledgeDocument.belongsTo(Staff, { foreignKey: 'createdBy', as: 'creator' });
+KnowledgeDocument.belongsTo(Staff, { foreignKey: 'updatedBy', as: 'updater' });
 
 //---------------------------------------------------------------------------------//
 module.exports = {

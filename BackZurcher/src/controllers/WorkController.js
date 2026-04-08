@@ -852,7 +852,7 @@ const deleteWork = async (req, res) => {
       deletedCounts.maintenanceVisits = work.maintenanceVisits.length;
       for (const visit of work.maintenanceVisits) {
         const mediaFiles = await MaintenanceMedia.findAll({
-          where: { maintenanceVisitId: visit.idMaintenanceVisit },
+          where: { maintenanceVisitId: visit.id }, // ✅ Usar visit.id en lugar de visit.idMaintenanceVisit
           transaction
         });
         

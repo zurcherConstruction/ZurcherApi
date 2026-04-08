@@ -33,6 +33,10 @@ const maintenanceData = [
 
 
   { address: '52 Paula, Lehigh Acres, FL, 33976', visitDate: '2026-09-30', visitNumber: 1 },
+  { address: '718 Shasta Cir., LaBelle, FL, 33935', visitDate: '2026-11-30', visitNumber: 1 },
+  { address: '5012 Tradewinds Cir., LaBelle, FL, 33935', visitDate: '2026-11-30', visitNumber: 1 },
+  { address: '8042 Buttercup Cir, LaBelle, FL, 33935', visitDate: '2026-11-30', visitNumber: 1 },
+  { address: '8044 Buttercup Cir, LaBelle , FL, 33936', visitDate: '2026-11-30', visitNumber: 1 },
   // MAYO 2025
   // { address: '935 Panda Dr, Lehigh Acres', visitDate: '2025-05-05', visitNumber: 1 },
   // { address: '614 Locust ave. Lehigh Acres', visitDate: '2025-05-20', visitNumber: 1 },

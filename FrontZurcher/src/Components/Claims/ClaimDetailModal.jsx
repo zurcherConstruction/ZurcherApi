@@ -14,6 +14,7 @@ import {
   LinkIcon,
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
+  TrashIcon,
 } from '@heroicons/react/24/outline';
 import { FireIcon } from '@heroicons/react/24/solid';
 
@@ -41,7 +42,7 @@ const TYPE_CONFIG = {
   other:     { label: 'Otro' },
 };
 
-const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange }) => {
+const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange, onDelete }) => {
   const [lightboxImage, setLightboxImage] = useState(null);
 
   if (!isOpen || !claim) return null;
@@ -368,20 +369,29 @@ const ClaimDetailModal = ({ isOpen, claim, onClose, onEdit, onStatusChange }) =>
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 rounded-b-2xl px-6 py-3 flex justify-end gap-2">
+            <div className="sticky bottom-0 bg-gray-50 border-t border-gray-100 rounded-b-2xl px-6 py-3 flex justify-between gap-2">
               <button
-                onClick={() => onEdit(claim)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition shadow-sm"
+                onClick={() => { onDelete(claim); onClose(); }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 bg-white border border-red-300 rounded-lg hover:bg-red-50 transition shadow-sm"
               >
-                <PencilSquareIcon className="h-4 w-4" />
-                Editar
+                <TrashIcon className="h-4 w-4" />
+                Eliminar
               </button>
-              <button
-                onClick={onClose}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-sm"
-              >
-                Cerrar
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onEdit(claim)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition shadow-sm"
+                >
+                  <PencilSquareIcon className="h-4 w-4" />
+                  Editar
+                </button>
+                <button
+                  onClick={onClose}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition shadow-sm"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
