@@ -139,5 +139,91 @@ export const bankTransactionActions = {
     } catch (error) {
       return handleError(error, 'Error al eliminar la transacción');
     }
+  },
+
+  // Obtener reporte mensual
+  getMonthlyReport: async (bankAccountId, month, year) => {
+    try {
+      const response = await api.get('/bank-transactions/monthly-report', {
+        params: { bankAccountId, month, year }
+      });
+      return response.data;
+    } catch (error) {
+      return handleError(error, 'Error al obtener el reporte mensual');
+    }
+  },
+
+  // Descargar reporte mensual en PDF
+  downloadMonthlyReportPDF: async (bankAccountId, month, year) => {
+    try {
+      const response = await api.get('/bank-transactions/monthly-report/pdf', {
+        params: { bankAccountId, month, year },
+        responseType: 'blob'
+      });
+      
+      // Crear blob y descargar archivo
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Obtener nombre del archivo del header Content-Disposition si existe
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `Reporte_Mensual_${month}_${year}.pdf`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return { error: false, message: 'PDF descargado exitosamente' };
+    } catch (error) {
+      return handleError(error, 'Error al descargar el PDF');
+    }
+  },
+
+  // Descargar reporte mensual en Excel
+  downloadMonthlyReportExcel: async (bankAccountId, month, year) => {
+    try {
+      const response = await api.get('/bank-transactions/monthly-report/excel', {
+        params: { bankAccountId, month, year },
+        responseType: 'blob'
+      });
+      
+      // Crear blob y descargar archivo
+      const blob = new Blob([response.data], { 
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Obtener nombre del archivo del header Content-Disposition si existe
+      const contentDisposition = response.headers['content-disposition'];
+      let filename = `Reporte_Mensual_${month}_${year}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename="(.+)"/);
+        if (filenameMatch) {
+          filename = filenameMatch[1];
+        }
+      }
+      
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      return { error: false, message: 'Excel descargado exitosamente' };
+    } catch (error) {
+      return handleError(error, 'Error al descargar el Excel');
+    }
   }
 };

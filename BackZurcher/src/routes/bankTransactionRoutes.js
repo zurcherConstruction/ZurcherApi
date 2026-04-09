@@ -12,8 +12,20 @@ const {
   createTransfer,
   getTransactions,
   getTransactionById,
-  deleteTransaction
+  deleteTransaction,
+  getMonthlyReport,
+  downloadMonthlyReportPDF,
+  downloadMonthlyReportExcel
 } = require('../controllers/bankTransactionController');
+
+// GET /api/bank-transactions/monthly-report - Obtener reporte mensual (debe ir antes de /:id)
+router.get('/monthly-report', getMonthlyReport);
+
+// GET /api/bank-transactions/monthly-report/pdf - Descargar PDF del reporte mensual
+router.get('/monthly-report/pdf', downloadMonthlyReportPDF);
+
+// GET /api/bank-transactions/monthly-report/excel - Descargar Excel del reporte mensual
+router.get('/monthly-report/excel', downloadMonthlyReportExcel);
 
 // GET /api/bank-transactions - Listar transacciones con filtros
 router.get('/', getTransactions);

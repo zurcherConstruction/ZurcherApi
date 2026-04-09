@@ -81,6 +81,7 @@ import SupplierInvoiceManager from './Components/SupplierInvoices/SupplierInvoic
 // Importar componentes de Bank Accounts
 import BankAccountsDashboard from './Components/BankAccounts/BankAccountsDashboard';
 import BankAccountDetail from './Components/BankAccounts/BankAccountDetail';
+import BankAccountMonthlyReport from './Components/BankAccounts/BankAccountMonthlyReport';
 import NewTransactionModal from './Components/BankAccounts/NewTransactionModal';
 // Importar componentes de Workers
 import WorkerDashboard from "./Components/Workers/WorkerDashboard";
@@ -605,6 +606,14 @@ function App() {
                 element={
                   <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
                     <BankAccountsDashboard />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/bank-accounts/monthly-report"
+                element={
+                  <PrivateRoute allowedRoles={["owner", "admin", "finance"]}>
+                    <BankAccountMonthlyReport />
                   </PrivateRoute>
                 }
               />
