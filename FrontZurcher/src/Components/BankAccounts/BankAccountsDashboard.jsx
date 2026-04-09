@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { bankAccountActions } from '../../Redux/Actions/bankAccountActions';
-import { FaUniversity, FaMoneyBillWave, FaExchangeAlt, FaChartLine, FaPlus } from 'react-icons/fa';
+import { FaUniversity, FaMoneyBillWave, FaExchangeAlt, FaChartLine, FaPlus, FaFileInvoice } from 'react-icons/fa';
 
 const BankAccountsDashboard = () => {
   const navigate = useNavigate();
@@ -90,13 +90,22 @@ const BankAccountsDashboard = () => {
               Gestión y seguimiento de todas las cuentas bancarias
             </p>
           </div>
-          <button
-            onClick={() => navigate('/bank-accounts/new-transaction')}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg"
-          >
-            <FaPlus />
-            Nueva Transacción
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate('/bank-accounts/monthly-report')}
+              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg"
+            >
+              <FaFileInvoice />
+              Reportes Mensuales
+            </button>
+            <button
+              onClick={() => navigate('/bank-accounts/new-transaction')}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg flex items-center gap-2 transition-colors shadow-lg"
+            >
+              <FaPlus />
+              Nueva Transacción
+            </button>
+          </div>
         </div>
       </div>
 

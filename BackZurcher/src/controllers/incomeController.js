@@ -517,6 +517,108 @@ const deleteIncome = async (req, res) => {
       }
     }
 
+    // 🧾 ELIMINAR RECEIPTS ASOCIADOS AL INCOME
+    try {
+      const { Receipt } = require('../data');
+      const { cloudinary } = require('../utils/cloudinaryConfig');
+      
+      const receipts = await Receipt.findAll({
+        where: {
+          relatedModel: 'Income',
+          relatedId: income.idIncome
+        },
+        transaction
+      });
+
+      if (receipts.length > 0) {
+        console.log(` Eliminando ${receipts.length} receipt(s) asociado(s) al Income ${income.idIncome}`);
+        
+        for (const receipt of receipts) {
+          // Eliminar archivo de Cloudinary
+          if (receipt.publicId) {
+            try {
+              await cloudinary.uploader.destroy(receipt.publicId, {
+                resource_type: receipt.mimeType === 'application/pdf' ? 'raw' : 'image'
+              });
+              console.log(`☁️ Archivo Cloudinary eliminado: ${receipt.publicId}`);
+            } catch (cloudError) {
+              console.error(`⚠️ Error eliminando archivo de Cloudinary ${receipt.publicId}:`, cloudError.message);
+            }
+          }
+          
+          // Eliminar el receipt de la BD
+          await receipt.destroy({ transaction });
+        }
+        
+        console.log(`✅ ${receipts.length} receipt(s) eliminado(s) correctamente`);
+      }
+    } catch (receiptError) {
+      console.error('❌ Error eliminando receipts asociados:', receiptError.message);
+      await transaction.rollback();
+      return res.status(500).json({
+        message: 'Error al eliminar comprobantes asociados',
+        error: receiptError.message
+      });
+    }
+
+    // 🧾 REVERTIR FINAL INVOICE SI ES PAGO FINAL
+    if (income.typeIncome === 'Factura Pago Final Budget' && income.workId) {
+      try {
+        const { FinalInvoice } = require('../data');
+        
+        const finalInvoice = await FinalInvoice.findOne({
+          where: { workId: income.workId },
+          transaction
+        });
+
+        if (finalInvoice) {
+          const incomeAmount = parseFloat(income.amount || 0);
+          const currentTotalPaid = parseFloat(finalInvoice.totalAmountPaid || 0);
+          const newTotalPaid = Math.max(0, currentTotalPaid - incomeAmount);
+          
+          // Determinar nuevo status
+          let newStatus = finalInvoice.status;
+          if (newTotalPaid === 0) {
+            newStatus = 'pending';
+          } else if (newTotalPaid < parseFloat(finalInvoice.finalAmountDue)) {
+            newStatus = 'partially_paid';
+          }
+          
+          // Actualizar FinalInvoice
+          await finalInvoice.update({
+            totalAmountPaid: newTotalPaid,
+            status: newStatus,
+            paymentDate: newTotalPaid === 0 ? null : finalInvoice.paymentDate,
+            paymentNotes: finalInvoice.paymentNotes 
+              ? `${finalInvoice.paymentNotes}\n🔄 Pago revertido: -$${incomeAmount.toFixed(2)} el ${new Date().toLocaleDateString()}`
+              : `🔄 Pago revertido: -$${incomeAmount.toFixed(2)} el ${new Date().toLocaleDateString()}`
+          }, { transaction });
+
+          console.log(`🔄 [FINAL INVOICE] Pago revertido en FinalInvoice #${finalInvoice.id}: -$${incomeAmount.toFixed(2)} → Total Paid: $${newTotalPaid.toFixed(2)} | Status: ${finalInvoice.status} → ${newStatus}`);
+          
+          // 🔄 REVERTIR WORK.STATUS SI EL FINAL INVOICE VOLVIÓ A PENDING
+          if (newStatus === 'pending') {
+            const { Work } = require('../data');
+            const work = await Work.findByPk(income.workId, { transaction });
+            
+            if (work && work.status === 'paymentReceived') {
+              await work.update({ status: 'invoiceFinal' }, { transaction });
+              console.log(`🔄 [WORK] Status revertido: paymentReceived → invoiceFinal (FinalInvoice volvió a pending)`);
+            }
+          }
+        } else {
+          console.warn(`⚠️ [FINAL INVOICE] No se encontró FinalInvoice para Work ${income.workId}`);
+        }
+      } catch (finalInvoiceError) {
+        console.error('❌ [FINAL INVOICE] Error revirtiendo pago:', finalInvoiceError.message);
+        await transaction.rollback();
+        return res.status(500).json({
+          message: 'Error al revertir pago en FinalInvoice',
+          error: finalInvoiceError.message
+        });
+      }
+    }
+
     // Eliminar el income
     await income.destroy({ transaction });
     

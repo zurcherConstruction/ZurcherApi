@@ -540,7 +540,7 @@ const getTransactionById = async (req, res) => {
         {
           model: Staff,
           as: 'createdBy',
-          attributes: ['idStaff', 'firstName', 'lastName', 'email'],
+          attributes: ['id', 'name', 'email'],
           required: false
         },
         {
@@ -700,11 +700,691 @@ const deleteTransaction = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/bank-transactions/monthly-report
+ * Obtener reporte mensual de transacciones para una cuenta específica
+ * Query params: bankAccountId, month (1-12), year (YYYY)
+ */
+const getMonthlyReport = async (req, res) => {
+  try {
+    const { bankAccountId, month, year } = req.query;
+
+    // Validaciones
+    if (!bankAccountId || !month || !year) {
+      return res.status(400).json({
+        success: false,
+        message: 'bankAccountId, month y year son obligatorios'
+      });
+    }
+
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'El mes debe estar entre 1 y 12'
+      });
+    }
+
+    // Obtener cuenta
+    const account = await BankAccount.findByPk(bankAccountId);
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cuenta bancaria no encontrada'
+      });
+    }
+
+    // Calcular rango de fechas (inicio y fin del mes)
+    const startDate = new Date(yearNum, monthNum - 1, 1);
+    const endDate = new Date(yearNum, monthNum, 0, 23, 59, 59);
+
+    // Formatear fechas en YYYY-MM-DD
+    const startDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+    const endDay = endDate.getDate();
+    const endDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+    // Obtener transacciones del mes
+    const transactions = await BankTransaction.findAll({
+      where: {
+        bankAccountId,
+        date: {
+          [Op.gte]: startDateStr,
+          [Op.lte]: endDateStr
+        }
+      },
+      order: [['date', 'ASC'], ['createdAt', 'ASC']],
+      include: [
+        {
+          model: Staff,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    // Calcular balance inicial (balance antes de este mes)
+    const transactionsBeforeMonth = await BankTransaction.findAll({
+      where: {
+        bankAccountId,
+        date: {
+          [Op.lt]: startDateStr
+        }
+      },
+      attributes: ['transactionType', 'amount']
+    });
+
+    let initialBalance = 0;
+    for (const tx of transactionsBeforeMonth) {
+      const amount = parseFloat(tx.amount);
+      if (tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in') {
+        initialBalance += amount;
+      } else if (tx.transactionType === 'withdrawal' || tx.transactionType === 'transfer_out') {
+        initialBalance -= amount;
+      }
+    }
+
+    // Calcular totales del mes
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    let totalTransfersIn = 0;
+    let totalTransfersOut = 0;
+
+    const transactionsWithBalance = [];
+    let runningBalance = initialBalance;
+
+    for (const tx of transactions) {
+      const amount = parseFloat(tx.amount);
+      
+      switch (tx.transactionType) {
+        case 'deposit':
+          totalDeposits += amount;
+          runningBalance += amount;
+          break;
+        case 'withdrawal':
+          totalWithdrawals += amount;
+          runningBalance -= amount;
+          break;
+        case 'transfer_in':
+          totalTransfersIn += amount;
+          runningBalance += amount;
+          break;
+        case 'transfer_out':
+          totalTransfersOut += amount;
+          runningBalance -= amount;
+          break;
+      }
+
+      transactionsWithBalance.push({
+        ...tx.toJSON(),
+        balanceAfterTransaction: runningBalance
+      });
+    }
+
+    const finalBalance = runningBalance;
+
+    // Resumen
+    const summary = {
+      accountName: account.accountName,
+      accountType: account.accountType,
+      month: monthNum,
+      year: yearNum,
+      monthName: new Date(yearNum, monthNum - 1, 1).toLocaleString('es-ES', { month: 'long' }),
+      initialBalance,
+      finalBalance,
+      currentBalance: parseFloat(account.currentBalance),
+      totalTransactions: transactions.length,
+      totalDeposits,
+      totalWithdrawals,
+      totalTransfersIn,
+      totalTransfersOut,
+      netChange: finalBalance - initialBalance
+    };
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        summary,
+        transactions: transactionsWithBalance
+      }
+    });
+
+  } catch (error) {
+    console.error('Error en getMonthlyReport:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener el reporte mensual',
+      error: error.message
+    });
+  }
+};
+
+/**
+ * GET /api/bank-transactions/monthly-report/pdf
+ * Descargar reporte mensual en formato PDF
+ * Query params: bankAccountId, month (1-12), year (YYYY)
+ */
+const downloadMonthlyReportPDF = async (req, res) => {
+  try {
+    const { bankAccountId, month, year } = req.query;
+
+    // Validaciones
+    if (!bankAccountId || !month || !year) {
+      return res.status(400).json({
+        success: false,
+        message: 'bankAccountId, month y year son obligatorios'
+      });
+    }
+
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'El mes debe estar entre 1 y 12'
+      });
+    }
+
+    // Obtener datos del reporte (reutilizar lógica)
+    const account = await BankAccount.findByPk(bankAccountId);
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cuenta bancaria no encontrada'
+      });
+    }
+
+    const startDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+    const endDate = new Date(yearNum, monthNum, 0);
+    const endDay = endDate.getDate();
+    const endDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+    const transactions = await BankTransaction.findAll({
+      where: {
+        bankAccountId,
+        date: {
+          [Op.gte]: startDateStr,
+          [Op.lte]: endDateStr
+        }
+      },
+      order: [['date', 'ASC'], ['createdAt', 'ASC']],
+      include: [
+        {
+          model: Staff,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    // Calcular balance inicial
+    const transactionsBeforeMonth = await BankTransaction.findAll({
+      where: {
+        bankAccountId,
+        date: { [Op.lt]: startDateStr }
+      },
+      attributes: ['transactionType', 'amount']
+    });
+
+    let initialBalance = 0;
+    for (const tx of transactionsBeforeMonth) {
+      const amount = parseFloat(tx.amount);
+      if (tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in') {
+        initialBalance += amount;
+      } else {
+        initialBalance -= amount;
+      }
+    }
+
+    // Calcular totales
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    let runningBalance = initialBalance;
+    const transactionsWithBalance = [];
+
+    for (const tx of transactions) {
+      const amount = parseFloat(tx.amount);
+      if (tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in') {
+        totalDeposits += amount;
+        runningBalance += amount;
+      } else {
+        totalWithdrawals += amount;
+        runningBalance -= amount;
+      }
+      transactionsWithBalance.push({
+        ...tx.toJSON(),
+        balanceAfterTransaction: runningBalance
+      });
+    }
+
+    // Generar PDF con PDFKit
+    const PDFDocument = require('pdfkit');
+    const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+
+    // Configurar headers para descarga
+    const monthName = new Date(yearNum, monthNum - 1, 1).toLocaleString('es-ES', { month: 'long' });
+    const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+    const filename = `Reporte_${account.accountName.replace(/\s+/g, '_')}_${capitalizedMonth}_${yearNum}.pdf`;
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    doc.pipe(res);
+
+    // Función helper para formatear moneda
+    const formatCurrency = (amount) => {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        minimumFractionDigits: 2
+      }).format(amount);
+    };
+
+    // ========== ENCABEZADO CON FONDO DE COLOR ==========
+    doc.save();
+    doc.rect(0, 0, doc.page.width, 90).fill('#1e3a8a'); // Azul oscuro - más pequeño
+    doc.restore();
+
+    doc.fillColor('#ffffff')
+      .fontSize(20)
+      .font('Helvetica-Bold')
+      .text('REPORTE MENSUAL DE TRANSACCIONES', 50, 25, { align: 'center' });
+    
+    doc.fontSize(12)
+      .font('Helvetica')
+      .text(`${account.accountName}`, 50, 52, { align: 'center' })
+      .text(`${capitalizedMonth} ${yearNum}`, 50, 68, { align: 'center' });
+
+    doc.fillColor('#000000'); // Restaurar color negro
+    doc.moveDown(2);
+
+    // ========== RESUMEN CON CAJAS DE COLORES ==========
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#1e3a8a').text('Resumen del Período', 50, doc.y);
+    doc.moveDown(0.5);
+
+    const summaryY = doc.y;
+    const boxWidth = 150;
+    const boxHeight = 50;
+    const boxSpacing = 15;
+
+    // Caja 1: Balance Inicial
+    doc.save();
+    doc.roundedRect(50, summaryY, boxWidth, boxHeight, 5).fillAndStroke('#f0f9ff', '#3b82f6');
+    doc.restore();
+    doc.fontSize(9).fillColor('#666666').font('Helvetica').text('Balance Inicial', 60, summaryY + 10);
+    doc.fontSize(14).fillColor('#1e3a8a').font('Helvetica-Bold').text(formatCurrency(initialBalance), 60, summaryY + 26);
+
+    // Caja 2: Depósitos
+    doc.save();
+    doc.roundedRect(50 + boxWidth + boxSpacing, summaryY, boxWidth, boxHeight, 5).fillAndStroke('#f0fdf4', '#22c55e');
+    doc.restore();
+    doc.fontSize(9).fillColor('#666666').font('Helvetica').text('Total Depósitos', 60 + boxWidth + boxSpacing, summaryY + 10);
+    doc.fontSize(14).fillColor('#16a34a').font('Helvetica-Bold').text(formatCurrency(totalDeposits), 60 + boxWidth + boxSpacing, summaryY + 26);
+
+    // Caja 3: Retiros
+    doc.save();
+    doc.roundedRect(50 + (boxWidth + boxSpacing) * 2, summaryY, boxWidth, boxHeight, 5).fillAndStroke('#fef2f2', '#ef4444');
+    doc.restore();
+    doc.fontSize(9).fillColor('#666666').font('Helvetica').text('Total Retiros', 60 + (boxWidth + boxSpacing) * 2, summaryY + 10);
+    doc.fontSize(14).fillColor('#dc2626').font('Helvetica-Bold').text(formatCurrency(totalWithdrawals), 60 + (boxWidth + boxSpacing) * 2, summaryY + 26);
+
+    doc.y = summaryY + boxHeight + 12;
+
+    // Línea adicional de resumen
+    const summaryY2 = doc.y;
+    
+    // Caja 4: Balance Final
+    doc.save();
+    doc.roundedRect(50, summaryY2, boxWidth, boxHeight, 5).fillAndStroke('#fefce8', '#eab308');
+    doc.restore();
+    doc.fontSize(9).fillColor('#666666').font('Helvetica').text('Balance Final', 60, summaryY2 + 10);
+    doc.fontSize(14).fillColor('#ca8a04').font('Helvetica-Bold').text(formatCurrency(runningBalance), 60, summaryY2 + 26);
+
+    // Caja 5: Cambio Neto
+    const netChange = runningBalance - initialBalance;
+    const netColor = netChange >= 0 ? '#22c55e' : '#ef4444';
+    const netBg = netChange >= 0 ? '#f0fdf4' : '#fef2f2';
+    doc.save();
+    doc.roundedRect(50 + boxWidth + boxSpacing, summaryY2, boxWidth, boxHeight, 5).fillAndStroke(netBg, netColor);
+    doc.restore();
+    doc.fontSize(9).fillColor('#666666').font('Helvetica').text('Cambio Neto', 60 + boxWidth + boxSpacing, summaryY2 + 10);
+    doc.fontSize(14).fillColor(netChange >= 0 ? '#16a34a' : '#dc2626').font('Helvetica-Bold')
+      .text(formatCurrency(netChange), 60 + boxWidth + boxSpacing, summaryY2 + 26);
+
+    // Caja 6: Total Transacciones
+    doc.save();
+    doc.roundedRect(50 + (boxWidth + boxSpacing) * 2, summaryY2, boxWidth, boxHeight, 5).fillAndStroke('#f5f3ff', '#8b5cf6');
+    doc.restore();
+    doc.fontSize(9).fillColor('#666666').font('Helvetica').text('Total Transacciones', 60 + (boxWidth + boxSpacing) * 2, summaryY2 + 10);
+    doc.fontSize(14).fillColor('#7c3aed').font('Helvetica-Bold').text(transactions.length.toString(), 60 + (boxWidth + boxSpacing) * 2, summaryY2 + 26);
+
+    doc.y = summaryY2 + boxHeight + 15;
+
+    // ========== TABLA DE TRANSACCIONES ==========
+    doc.fontSize(12).font('Helvetica-Bold').fillColor('#1e3a8a').text('Detalle de Transacciones', 50, doc.y);
+    doc.moveDown(0.5);
+
+    let pageNumber = 1; // Inicializar número de página
+
+    if (transactions.length === 0) {
+      doc.fontSize(10).fillColor('#666666').font('Helvetica').text('No hay transacciones en este período.');
+    } else {
+      const tableTop = doc.y;
+      const rowHeight = 20; // Reducido de 25 a 20
+      const col1 = 50;   // Fecha
+      const col2 = 125;  // Tipo
+      const col3 = 220;  // Monto
+      const col4 = 310;  // Balance
+      const col5 = 410;  // Descripción
+      const tableWidth = 512; // Ancho total de la tabla
+
+      // Header de la tabla con fondo
+      doc.save();
+      doc.rect(col1, tableTop, tableWidth, rowHeight).fillAndStroke('#e0e7ff', '#3b82f6');
+      doc.restore();
+
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e3a8a');
+      doc.text('Fecha', col1 + 5, tableTop + 5);
+      doc.text('Tipo', col2 + 5, tableTop + 5);
+      doc.text('Monto', col3 + 5, tableTop + 5);
+      doc.text('Balance', col4 + 5, tableTop + 5);
+      doc.text('Descripción', col5 + 5, tableTop + 5);
+
+      let currentY = tableTop + rowHeight;
+      let rowIndex = 0;
+
+      const typeLabels = {
+        deposit: 'Depósito',
+        withdrawal: 'Retiro',
+        transfer_in: 'Transf. IN',
+        transfer_out: 'Transf. OUT'
+      };
+
+      // Filas de datos con alternancia de colores
+      for (const tx of transactionsWithBalance) {
+        // Verificar si necesitamos nueva página
+        if (currentY > 720) {
+          doc.addPage();
+          pageNumber++;
+          currentY = 50;
+          
+          // Repetir header en nueva página
+          doc.save();
+          doc.rect(col1, currentY, tableWidth, rowHeight).fillAndStroke('#e0e7ff', '#3b82f6');
+          doc.restore();
+          doc.fontSize(9).font('Helvetica-Bold').fillColor('#1e3a8a');
+          doc.text('Fecha', col1 + 5, currentY + 5);
+          doc.text('Tipo', col2 + 5, currentY + 5);
+          doc.text('Monto', col3 + 5, currentY + 5);
+          doc.text('Balance', col4 + 5, currentY + 5);
+          doc.text('Descripción', col5 + 5, currentY + 5);
+          currentY += rowHeight;
+          rowIndex = 0;
+        }
+
+        // Fondo alternado para filas
+        const bgColor = rowIndex % 2 === 0 ? '#ffffff' : '#f8fafc';
+        doc.save();
+        doc.rect(col1, currentY, tableWidth, rowHeight).fill(bgColor);
+        doc.restore();
+
+        // Bordes de la fila
+        doc.save();
+        doc.rect(col1, currentY, tableWidth, rowHeight).stroke('#e2e8f0');
+        doc.restore();
+
+        const amount = parseFloat(tx.amount);
+        const isCredit = tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in';
+        
+        // Contenido de la fila
+        doc.fontSize(8).font('Helvetica').fillColor('#334155');
+        
+        // Fecha
+        doc.text(tx.date, col1 + 5, currentY + 6, { width: 70 });
+        
+        // Tipo
+        doc.text(typeLabels[tx.transactionType] || tx.transactionType, col2 + 5, currentY + 6, { width: 85 });
+        
+        // Monto (verde para depósitos, rojo para retiros)
+        doc.fillColor(isCredit ? '#16a34a' : '#dc2626')
+          .text((isCredit ? '+' : '-') + formatCurrency(amount), col3 + 5, currentY + 6, { width: 85 });
+        
+        // Balance
+        doc.fillColor('#334155')
+          .text(formatCurrency(tx.balanceAfterTransaction), col4 + 5, currentY + 6, { width: 95 });
+        
+        // Descripción (truncada si es muy larga)
+        const description = (tx.description || 'N/A').substring(0, 35);
+        doc.text(description, col5 + 5, currentY + 6, { width: 150 });
+
+        currentY += rowHeight;
+        rowIndex++;
+      }
+    }
+
+    // Finalizar PDF
+    doc.end();
+
+  } catch (error) {
+    console.error('Error en downloadMonthlyReportPDF:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error al generar el PDF',
+        error: error.message
+      });
+    }
+  }
+};
+
+/**
+ * GET /api/bank-transactions/monthly-report/excel
+ * Descargar reporte mensual en formato Excel
+ * Query params: bankAccountId, month (1-12), year (YYYY)
+ */
+const downloadMonthlyReportExcel = async (req, res) => {
+  try {
+    const { bankAccountId, month, year } = req.query;
+
+    // Validaciones
+    if (!bankAccountId || !month || !year) {
+      return res.status(400).json({
+        success: false,
+        message: 'bankAccountId, month y year son obligatorios'
+      });
+    }
+
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({
+        success: false,
+        message: 'El mes debe estar entre 1 y 12'
+      });
+    }
+
+    // Obtener datos del reporte
+    const account = await BankAccount.findByPk(bankAccountId);
+    if (!account) {
+      return res.status(404).json({
+        success: false,
+        message: 'Cuenta bancaria no encontrada'
+      });
+    }
+
+    const startDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+    const endDate = new Date(yearNum, monthNum, 0);
+    const endDay = endDate.getDate();
+    const endDateStr = `${yearNum}-${String(monthNum).padStart(2, '0')}-${String(endDay).padStart(2, '0')}`;
+
+    const transactions = await BankTransaction.findAll({
+      where: {
+        bankAccountId,
+        date: {
+          [Op.gte]: startDateStr,
+          [Op.lte]: endDateStr
+        }
+      },
+      order: [['date', 'ASC'], ['createdAt', 'ASC']],
+      include: [
+        {
+          model: Staff,
+          as: 'createdBy',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    // Calcular balance inicial
+    const transactionsBeforeMonth = await BankTransaction.findAll({
+      where: {
+        bankAccountId,
+        date: { [Op.lt]: startDateStr }
+      },
+      attributes: ['transactionType', 'amount']
+    });
+
+    let initialBalance = 0;
+    for (const tx of transactionsBeforeMonth) {
+      const amount = parseFloat(tx.amount);
+      if (tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in') {
+        initialBalance += amount;
+      } else {
+        initialBalance -= amount;
+      }
+    }
+
+    // Calcular totales
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    let runningBalance = initialBalance;
+    const transactionsWithBalance = [];
+
+    for (const tx of transactions) {
+      const amount = parseFloat(tx.amount);
+      if (tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in') {
+        totalDeposits += amount;
+        runningBalance += amount;
+      } else {
+        totalWithdrawals += amount;
+        runningBalance -= amount;
+      }
+      transactionsWithBalance.push({
+        ...tx.toJSON(),
+        balanceAfterTransaction: runningBalance
+      });
+    }
+
+    // Generar Excel con ExcelJS
+    const ExcelJS = require('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Reporte Mensual');
+
+    // Configurar columnas
+    worksheet.columns = [
+      { header: 'Fecha', key: 'date', width: 12 },
+      { header: 'Tipo', key: 'type', width: 15 },
+      { header: 'Monto', key: 'amount', width: 15 },
+      { header: 'Balance', key: 'balance', width: 15 },
+      { header: 'Categoría', key: 'category', width: 15 },
+      { header: 'Descripción', key: 'description', width: 40 },
+      { header: 'Creado Por', key: 'createdBy', width: 20 }
+    ];
+
+    // Título
+    const monthName = new Date(yearNum, monthNum - 1, 1).toLocaleString('es-ES', { month: 'long' });
+    worksheet.mergeCells('A1:G1');
+    worksheet.getCell('A1').value = `Reporte Mensual - ${account.accountName} - ${monthName} ${yearNum}`;
+    worksheet.getCell('A1').font = { bold: true, size: 14 };
+    worksheet.getCell('A1').alignment = { horizontal: 'center' };
+
+    // Resumen
+    worksheet.addRow([]);
+    worksheet.addRow(['Balance Inicial:', `$${initialBalance.toFixed(2)}`]);
+    worksheet.addRow(['Total Depósitos:', `$${totalDeposits.toFixed(2)}`]);
+    worksheet.addRow(['Total Retiros:', `$${totalWithdrawals.toFixed(2)}`]);
+    worksheet.addRow(['Balance Final:', `$${runningBalance.toFixed(2)}`]);
+    worksheet.addRow(['Cambio Neto:', `$${(runningBalance - initialBalance).toFixed(2)}`]);
+    worksheet.addRow(['Total Transacciones:', transactions.length]);
+    worksheet.addRow([]);
+
+    // Headers con estilo
+    const headerRow = worksheet.addRow([
+      'Fecha',
+      'Tipo',
+      'Monto',
+      'Balance',
+      'Categoría',
+      'Descripción',
+      'Creado Por'
+    ]);
+    
+    headerRow.font = { bold: true };
+    headerRow.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FFD3D3D3' }
+    };
+
+    // Datos
+    const typeLabels = {
+      deposit: 'Depósito',
+      withdrawal: 'Retiro',
+      transfer_in: 'Transfer IN',
+      transfer_out: 'Transfer OUT'
+    };
+
+    transactionsWithBalance.forEach(tx => {
+      const amount = parseFloat(tx.amount);
+      const isCredit = tx.transactionType === 'deposit' || tx.transactionType === 'transfer_in';
+      const amountStr = (isCredit ? '+' : '-') + amount.toFixed(2);
+      const createdBy = tx.createdBy 
+        ? tx.createdBy.name
+        : 'N/A';
+
+      worksheet.addRow({
+        date: tx.date,
+        type: typeLabels[tx.transactionType] || tx.transactionType,
+        amount: amountStr,
+        balance: tx.balanceAfterTransaction.toFixed(2),
+        category: tx.category || 'N/A',
+        description: tx.description || '',
+        createdBy
+      });
+    });
+
+    // Configurar respuesta
+    const filename = `Reporte_${account.accountName.replace(/\s+/g, '_')}_${monthName}_${yearNum}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    // Enviar archivo
+    await workbook.xlsx.write(res);
+    res.end();
+
+  } catch (error) {
+    console.error('Error en downloadMonthlyReportExcel:', error);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error al generar el Excel',
+        error: error.message
+      });
+    }
+  }
+};
+
 module.exports = {
   createDeposit,
   createWithdrawal,
   createTransfer,
   getTransactions,
   getTransactionById,
-  deleteTransaction
+  deleteTransaction,
+  getMonthlyReport,
+  downloadMonthlyReportPDF,
+  downloadMonthlyReportExcel
 };

@@ -149,6 +149,15 @@ dist
 .yarn/install-state.gz
 .pnp.*
 
+# 🛠️ Scripts de mantenimiento (fix, audit, verify)
+# Archivos temporales de corrección y auditoría
+fix-*.js
+audit-*.js
+verify-*.js
+**/fix-*.js
+**/audit-*.js
+**/verify-*.js
+
 # Temporary files and documentation
 temp_*.txt
 FRONTEND_STATUS_AUDIT_COMPLETE.md
